@@ -41,20 +41,20 @@ One. Functionally obtrusive, loading the href with ajax into data-pjax:
 ```
 
 ```js
-$('a[data-pjax]').pjax()
+$(document).pjax('a[data-pjax]')
 ```
 
 
-Two. Slightly obtrusive, passing a container and jQuery ajax options:
+Two. Slightly obtrusive, passing a container and binding an error handler:
 
 ```html
 <a href='/explore' class='js-pjax'>Explore</a>
 ```
 
 ```js
-$('.js-pjax').pjax('#main', { timeout: null, error: function(xhr, err){
+$('#main').pjax('.js-pjax').on('pjax:error', function(e, xhr, err) {
   $('.error').text('Something went wrong: ' + err)
-}})
+})
 ```
 
 
@@ -71,28 +71,26 @@ Three. Unobtrusive, showing a 'loading' spinner:
 ```
 
 ```js
-$('a').pjax('#main').live('click', function(){
+$('#main').pjax('a').on('pjax:send', function(){
   $(this).showLoader()
 })
 ```
 
 
-## $(link).pjax( container, options )
+## $(container).pjax( link, options )
 
-The `$(link).pjax()` function accepts a container, an options object,
-or both. The container MUST be a string selector - this is because we
-cannot persist jQuery objects using the History API between page loads.
+The `$(container).pjax(selector)` uses the jquery context as the
+default container pjax. The link selector is used to match against
+delegated click events to start pjaxing.
 
 The options are the same as jQuery's `$.ajax` options with the
 following additions:
 
 * `container`      - The String selector of the container to load the
                      reponse body. Must be a String.
-* `clickedElement` - The element that was clicked to start the pjax call.
+* `target`         - The Element that was clicked to start the pjax call.
 * `push`           - Whether to pushState the URL. Default: true (of course)
 * `replace`        - Whether to replaceState the URL. Default: false
-* `error`          - By default this callback reloads the target page once
-                    `timeout` ms elapses.
 * `timeout`        - pjax sets this low, <1s. Set this higher if using a
                      custom error handler. It's ms, so something like
                      `timeout: 2000`
@@ -154,9 +152,32 @@ def my_page
 end
 ```
 
+Or as a before filter in application controller:
+
+```ruby
+layout :set_layout
+
+private
+  def set_layout
+    if request.headers['X-PJAX']
+      false
+    else
+      "application"
+    end
+  end
+```
+
+Rails: <https://github.com/rails/pjax_rails>
+
 Django: <https://github.com/jacobian/django-pjax>
 
 Asp.Net MVC3: <http://biasecurities.com/blog/2011/using-pjax-with-asp-net-mvc3/>
+
+FuelPHP: <https://github.com/rcrowe/fuel-pjax>
+
+Grails: <http://www.bobbywarner.com/2012/04/23/add-some-pjax-to-grails/>
+
+Express: <https://github.com/abdelsaid/express-pjax-demo>
 
 
 ## page titles
@@ -178,20 +199,35 @@ reponse body into:
 This allows you to, say, display a loading indicator upon pjaxing:
 
 ```js
-$('a.pjax').pjax('#main')
-$('#main')
-  .bind('pjax:start', function() { $('#loading').show() })
-  .bind('pjax:end',   function() { $('#loading').hide() })
+$('#main').pjax('a.pjax')
+  .on('pjax:start', function() { $('#loading').show() })
+  .on('pjax:end',   function() { $('#loading').hide() })
 ```
 
-Because these events bubble, you can also set them on the body:
+Because these events bubble, you can also set them on the document:
 
 ```js
-$('a.pjax').pjax()
-$('body')
-  .bind('pjax:start', function() { $('#loading').show() })
-  .bind('pjax:end',   function() { $('#loading').hide() })
+$('#main').pjax('a.pjax')
+$(document)
+  .on('pjax:start', function() { $('#loading').show() })
+  .on('pjax:end',   function() { $('#loading').hide() })
 ```
+
+In addition, custom events are added to complement `$.ajax`'s
+callbacks.
+
+* `pjax:beforeSend` - Fired before the pjax request begins. Returning
+                      false will abort the request.
+* `pjax:complete`   - Fired after the pjax request finishes.
+* `pjax:success`    - Fired after the pjax request succeeds.
+* `pjax:error`      - Fired after the pjax request fails. Returning
+                      false will prevent the the fallback redirect.
+* `pjax:timeout`    - Fired if after timeout is reached. Returning
+                      false will disable the fallback and will wait
+                      indefinitely until the response returns.
+
+**CAUTION** Callback handlers passed to `$.pjax` **cannot** be persisted
+across full page reloads. Its recommended you use custom events instead.
 
 ## browser support
 
@@ -209,7 +245,7 @@ work normally) and `$.pjax({url:url})` calls will redirect to the given URL.
 
 ```
 $ cd path/to/js
-$ wget https://github.com/defunkt/jquery-pjax/raw/master/jquery.pjax.js
+$ wget https://raw.github.com/defunkt/jquery-pjax/master/jquery.pjax.js
 ```
 
 Then, in your HTML:
@@ -220,6 +256,39 @@ Then, in your HTML:
 
 Replace `path/to/js` with the path to your JavaScript directory,
 e.g. `public/javascripts`.
+
+
+## upgrade it
+
+pjax 1.0 includes some breaking changes.
+
+The main API was changed.
+
+Old: `$(link).pjax( container, options )`
+
+New: `$(container).pjax( link, options )`
+
+Instead of this:
+
+    $('a[data-pjax]').pjax()
+
+Do this:
+
+    $(document).pjax('a[data-pjax]')
+
+These options were removed:
+
+* `clickedElement` - Use `target` instead
+* `beforeSend` - Bind to `pjax:beforeSend` instead
+* `complete` - Bind to `pjax:complete` instead
+* `success` - Bind to `pjax:success` instead
+* `error` - Bind to `pjax:error` instead
+
+These events were removed:
+
+* `pjax` - Use `pjax:start`
+* `start.pjax` - Use `pjax:start`
+* `end.pjax` - Use `pjax:end`
 
 
 ## minimize it
