@@ -180,28 +180,79 @@ if ($.support.pjax) {
   })
 
   asyncTest("ignores same page anchors", function() {
-    var frame = this.frame
+    var event, frame = this.frame
 
     frame.$("#main").pjax("a")
 
-    var event = frame.$.Event('click')
+    event = frame.$.Event('click')
     frame.$("a[href='#main']").trigger(event)
-    notEqual(event.result, false)
+    equal(event.isDefaultPrevented(), false)
+
+    event = frame.$.Event('click')
+    frame.$("a[href='#']").trigger(event)
+    equal(event.isDefaultPrevented(), false)
 
     start()
   })
 
-  asyncTest("scrolls to anchor after load", function() {
+  asyncTest("ignores same page anchors from URL that has hash", function() {
+    var event, frame = this.frame
+
+    frame.window.location = "#foo"
+    frame.$("#main").pjax("a")
+
+    event = frame.$.Event('click')
+    frame.$("a[href='#main']").trigger(event)
+    equal(event.isDefaultPrevented(), false)
+
+    event = frame.$.Event('click')
+    frame.$("a[href='#']").trigger(event)
+    equal(event.isDefaultPrevented(), false)
+
+    start()
+  })
+
+  asyncTest("ignores event with prevented default", function() {
+    var frame = this.frame
+    var eventIgnored = true
+
+    frame.$("#main").pjax("a").on("pjax:click", function() {
+      eventIgnored = false
+    })
+    frame.$("a[href='/dinosaurs.html']").on("click", function(event) {
+      event.preventDefault()
+      setTimeout(function() {
+        ok(eventIgnored, "Event with prevented default ignored")
+        start()
+      }, 10)
+    })
+
+    frame.$("a[href='/dinosaurs.html']").click()
+  })
+
+  asyncTest("triggers pjax:click event from link", function() {
     var frame = this.frame
 
-    frame.$("#main").pjax("a").on("pjax:end", function() {
-      equal(frame.location.pathname, "/dinosaurs.html")
-      equal(frame.location.hash, "#main")
+    frame.$("#main").pjax("a").on("pjax:click", function(event, options) {
+      ok(event)
+      ok(options.container.is('#main'))
+      ok(options.url.match("/dinosaurs.html"))
       start()
     })
 
-    var link = frame.$("a[href='/dinosaurs.html']")
-    link.attr('href', "/dinosaurs.html#main")
-    link.click()
+    frame.$("a[href='/dinosaurs.html']").click()
+  })
+
+  asyncTest("triggers pjax:clicked event from link", function() {
+    var frame = this.frame
+
+    frame.$("#main").pjax("a").on("pjax:clicked", function(event, options) {
+      ok(event)
+      ok(options.container.is('#main'))
+      ok(options.url.match("/dinosaurs.html"))
+      start()
+    })
+
+    frame.$("a[href='/dinosaurs.html']").click()
   })
 }
